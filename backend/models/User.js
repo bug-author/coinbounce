@@ -18,7 +18,12 @@ const UserSchema = new mongoose.Schema({
   },
 
   tokens: [],
-  articles: [],
+  articles: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "BlogPost",
+    },
+  ],
 });
 
 UserSchema.pre("save", function (next) {
@@ -37,12 +42,36 @@ UserSchema.pre("save", function (next) {
   });
 });
 
-UserSchema.methods.generateAuthToken = async () => {
+// instance method
+UserSchema.methods.generateAuthToken = async function () {
   const user = this;
   const token = jwt.sign({ _id: user._id.toString() }, "appSecret");
-  user.tokens.concat({ token });
+  user.tokens = user.tokens.concat({ token });
   await user.save();
   return;
+};
+
+// static method
+UserSchema.statics.findByCredentials = async (email, password) => {
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw new Error("Invalid login credentials");
+  }
+  const isPasswordMatch = await bcrypt.compare(password, user.password);
+  if (!isPasswordMatch) {
+    throw new Error("Invalid login credentials");
+  }
+  return user;
+};
+
+// this will run whenever json response is sent back
+UserSchema.methods.toJSON = function () {
+  const user = this;
+  const userObject = user.toObject();
+  delete userObject.password;
+  delete userObject.tokens;
+  delete userObject.articles;
+  return userObject;
 };
 
 const User = mongoose.model("User", UserSchema);
